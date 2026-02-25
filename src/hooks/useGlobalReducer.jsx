@@ -1,24 +1,113 @@
-// Import necessary hooks and functions from React.
 import { useContext, useReducer, createContext } from "react";
-import storeReducer, { initialStore } from "../store"  // Import the reducer and the initial state.
+import storeReducer, { initialStore } from "../store";
 
-// Create a context to hold the global state of the application
-// We will call this global state the "store" to avoid confusion while using local states
-const StoreContext = createContext()
+const StoreContext = createContext();
 
-// Define a provider component that encapsulates the store and warps it in a context provider to 
-// broadcast the information throught all the app pages and components.
 export function StoreProvider({ children }) {
-    // Initialize reducer with the initial state.
-    const [store, dispatch] = useReducer(storeReducer, initialStore())
-    // Provide the store and dispatch method to all child components.
-    return <StoreContext.Provider value={{ store, dispatch }}>
-        {children}
-    </StoreContext.Provider>
+    const [store, dispatch] = useReducer(storeReducer, initialStore());
+
+    const actions = {
+        // Obtener todos los contactos
+        getContacts: async () => {
+            const resp = await fetch("https://playground.4geeks.com/contact/agendas/DevAnd7/contacts");
+            const data = await resp.json();
+
+            const contacts = Array.isArray(data) ? data : data.contacts || [];
+            dispatch({ type: "set_contacts", payload: contacts });
+        },
+
+        // Crear un contacto
+        addContact: async (contact) => {
+    const payload = {
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        address: contact.address
+    };
+
+    try {
+        const resp = await fetch("https://playground.4geeks.com/contact/agendas/DevAnd7/contacts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+        console.log("Response status:", resp.status);
+        console.log("Response data:", data);
+
+        if (!resp.ok) {
+            throw new Error(data.msg || data.message || JSON.stringify(data) || "Error creando contacto");
+        }
+
+        await actions.getContacts();
+        return { success: true };
+    } catch (error) {
+        console.error("Error completo:", error);
+        return { success: false, error: error.message };
+    }
+},
+
+        // Actualizar un contacto
+        updateContact: async (id, contact) => {
+            const payload = {
+                name: contact.name,
+                email: contact.email,
+                phone: contact.phone,
+                address: contact.address
+            };
+
+            try {
+                const resp = await fetch(`https://playground.4geeks.com/contact/agendas/DevAnd7/contacts/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json();
+                console.log("Response status:", resp.status);
+                console.log("Response data:", data);
+
+                if (!resp.ok) {
+                    throw new Error(data.msg || data.message || JSON.stringify(data) || "Error actualizando contacto");
+                }
+
+                await actions.getContacts();
+                return { success: true };
+            } catch (error) {
+                console.error("Error:", error);
+                return { success: false, error: error.message };
+            }
+        },
+
+        // Eliminar un contacto
+        deleteContact: async (id) => {
+            try {
+                const resp = await fetch(`https://playground.4geeks.com/contact/agendas/DevAnd7/contacts/${id}`, {
+                    method: "DELETE"
+                });
+
+                if (!resp.ok) {
+                    const error = await resp.json();
+                    throw new Error(error.msg || "Error eliminando contacto");
+                }
+
+                await actions.getContacts();
+                return { success: true };
+            } catch (error) {
+                console.error("Error:", error.message);
+                return { success: false, error: error.message };
+            }
+        }
+    };
+
+    return (
+        <StoreContext.Provider value={{ store, actions }}>
+            {children}
+        </StoreContext.Provider>
+    );
 }
 
-// Custom hook to access the global state and dispatch function.
 export default function useGlobalReducer() {
-    const { dispatch, store } = useContext(StoreContext)
-    return { dispatch, store };
+    return useContext(StoreContext);
 }
